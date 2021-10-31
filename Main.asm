@@ -1,213 +1,145 @@
 INCLUDE Irvine32.inc
 
-
 Point STRUCT
 	x BYTE 0
 	y BYTE 0
 Point ENDS
 
+
 .data
-
-ground BYTE "------------------------------------------------------------------------------------------------------------------------",0
-strScore BYTE "Your score is: ",0
-score BYTE 0
-xVec BYTE 0
-xPos BYTE 20
-yPos BYTE 20
-xCoinPos BYTE ?
-yCoinPos BYTE ?
-inputChar BYTE ?
-
+	inputChar BYTE ?
+	player Point <40, 27>
+	dirX SBYTE 0
+	clock DWORD 0
 .code
-main PROC
-	call Randomize
-	call DrawGround
-	call DrawPlayer
-	call CreateRandomCoin
-	call DrawCoin
-	gameLoop:
-		call ShowPlayerPos
-		; getting points:
-		mov bl,xPos
-		cmp bl,xCoinPos
-		jne notCollecting
-		mov bl,yPos
-		cmp bl,yCoinPos
-		jge notCollecting
-		; player is intersecting coin:
-		inc score
-		call CreateRandomCoin
-		call DrawCoin
-		notCollecting:
-
-		mov eax,white (black * 16)
-		call SetTextColor
-
-		; draw score:
-		mov dl,0
-		mov dh,0
-		call Gotoxy
-		mov edx,OFFSET strScore
-		call WriteString
-		mov al,score
-		call WriteInt
-
-		; gravity logic:
-		gravity:
-		cmp yPos,27
-		jg onGround
-		; make player fall:
-		call UpdatePlayer
-		inc yPos
+	main PROC
 		call DrawPlayer
-		mov eax,80
-		call Delay
-		jmp gravity
-		onGround:
+		gameLoop:
+			call Update
+			jmp gameLoop 
+			
+		exit
+	main ENDP
 
-		; get user key input:
-		call ReadChar
-		mov inputChar,al
+	Update PROC
+		call HandleEvents
+		call Gravity
+		call Inertia
+		ret
+	Update ENDP
 
-		; exit game if user types 'x':
-		cmp inputChar,"x"
-		je exitGame
+	Gravity PROC uses eax
+		movzx eax, player.y
+		cmp player.y, 27
+		jl _
+		ret
+		_:
+			call clearPlayer
+			inc player.y
+			cmp dirX, 0
+			je Rest
 
-		cmp inputChar,"w"
-		je moveUp
+			mov al,player.x 
+			add al, dirX
+			mov player.x, al
 
-		cmp inputChar,"s"
-		je moveDown
-
-		cmp inputChar,"a"
-		je moveLeft
-
-		cmp inputChar,"d"
-		je moveRight
-
-		moveUp:
-		; allow player to jump:
-		mov ecx,5
-		jumpLoop:
-			call UpdatePlayer
-			dec yPos
-			;CMP xVec,0
-			;JG moveRightJump
-			;CMP xVec,0
-			;JL moveLeftJump
-			rest:
+			Rest:
 			call DrawPlayer
-			mov eax,70
+			mov eax, 40
+			call delay
+			ret
+	Gravity ENDP
+
+	Inertia PROC
+		inc Clock     ; i have used a clock to basically check if it has been 10 cycles without any movement
+		cmp Clock, 1500 ; if it has been 1500 cycles then i reset dirX
+		jne Return
+		mov dirX, 0
+		Return:
+			ret
+	Inertia ENDP
+
+	HandleEvents PROC
+		call ReadKey
+		jnz KeyEntered 
+		ret	;if no key is entered it returns
+		
+		KeyEntered:
+			mov inputChar,al
+
+			_1:
+				cmp inputChar,"w"	;if w
+				jne _2
+				call Jump
+
+			_2:
+				cmp inputChar,"a" ;else if a
+				jne _3
+				call moveLeft
+	
+			_3:
+				cmp inputChar,"d" ; else if d
+				jne _4
+				call moveRight
+		
+			_4:
+				ret			 ; else return
+	HandleEvents ENDP
+
+	Jump PROC uses ecx eax 
+		mov ecx, 5
+		_:
+			call ClearPlayer
+			dec player.y
+			mov al,player.x 
+			add al, dirX
+			mov player.x, al
+			call DrawPlayer
+			mov eax,40
 			call Delay
-		loop jumpLoop
-		jmp gameLoop
+			loop _
+		ret
+	Jump ENDP
 
-		moveDown:
-		call UpdatePlayer
-		inc yPos
+	moveLeft PROC
+		mov clock, 0
+		call clearPlayer
+		mov dirX, -1
+		dec player.x
 		call DrawPlayer
-		jmp gameLoop
-
-		moveLeft:
-		mov xvec,-1
-		call UpdatePlayer
-		dec xPos
+		ret
+	moveLeft ENDP
+	
+	moveRight PROC
+		mov clock, 0
+		call clearPlayer
+		mov dirX, 1
+		inc player.x
 		call DrawPlayer
-		jmp gameLoop
-
-		moveRight:
-		mov xvec,1
-		call UpdatePlayer
-		inc xPos
-		call DrawPlayer
-		jmp gameLoop
-
+		ret
+	moveRight ENDP
 	
 
-	jmp gameLoop
-
-	moveRightJump:
-		inc xPos
-		JMP rest
-
-	moveLeftJump:
-	dec xPos
-	JMP rest
+	DrawPlayer PROC
+		mov dl, player.x
+		mov dh, player.y
+		mov al, 'X'
+		call WriteCharToConsoleXY
+		ret
+	DrawPlayer ENDP
 
 
-	exitGame:
-	exit
-main ENDP
+	ClearPlayer PROC
+		mov dl, player.x
+		mov dh, player.y
+		mov al, ' '
+		call WriteCharToConsoleXY
+		ret
+	CLearPlayer ENDP
 
-ShowPlayerPos PROC
-	mov eax,white (black * 16)
-	mov dl,30
-	mov dh,0
-	call Gotoxy
-	movzx eax,xPos
-	call writedec
-	mov dl,40
-	mov dh,0
-	call Gotoxy
-	movzx eax,yPos
-	call writedec
-ShowPlayerPos ENDP
-
-
-DrawPlayer PROC
-	; draw player at (xPos,yPos):
-	mov dl,xPos
-	mov dh,yPos
-	call Gotoxy
-	mov al,"X"
-	call WriteChar
-	ret
-DrawPlayer ENDP
-
-UpdatePlayer PROC
-	mov dl,xPos
-	mov dh,yPos
-	call Gotoxy
-	mov al," "
-	call WriteChar
-	ret
-UpdatePlayer ENDP
-
-DrawCoin PROC
-	mov eax,yellow (yellow * 16)
-	call SetTextColor
-	mov dl,xCoinPos
-	mov dh,yCoinPos
-	call Gotoxy
-	mov al,"X"
-	call WriteChar
-	ret
-DrawCoin ENDP
-
-DrawGround PROC uses edx eax
-	mov dl,0
-	mov dh,29
-	call Gotoxy
-	mov edx,OFFSET ground
-	mov eax,green (green * 16)
-	call SetTextColor
-	call WriteString
-	ret
-DrawGround ENDP
-
-
-CreateRandomCoin PROC
-	mov eax,30
-	call RandomRange
-	mov xCoinPos,al
-	mov eax,5
-	call RandomRange
-	add al, 23
-	mov yCoinPos,al
-	ret
-CreateRandomCoin ENDP
-
-
-
-
+	WriteCharToConsoleXY PROC ; Params{dl: X, dh: Y, al: 'char'} 
+		call gotoXY
+		call writeChar
+		ret
+	WriteCharToConsoleXY ENDP
 END main
