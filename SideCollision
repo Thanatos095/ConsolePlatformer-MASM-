@@ -45,7 +45,6 @@ Point ENDS
 
 	Update PROC
 		call HandleEvents
-		call SideCollision
 		call Gravity
 		call Inertia
 		ret
@@ -114,19 +113,21 @@ Point ENDS
 	Jump PROC uses ecx eax 
 		mov ecx, 5
 		_:
+		   call SideCollision
 			call ClearPlayer
 			dec player.y
 			mov al,player.x 
 			add al, dirX
 			mov player.x, al
 			call DrawPlayer
-			mov eax,40
+			mov eax,20
 			call Delay
 			loop _
 		ret
 	Jump ENDP
 
 	moveLeft PROC
+		call SideCollision
 		mov clock, 0
 		call clearPlayer
 		mov dirX, -1
@@ -136,6 +137,7 @@ Point ENDS
 	moveLeft ENDP
 	
 	moveRight PROC
+		call SideCollision
 		mov clock, 0
 		call clearPlayer
 		mov dirX, 1
@@ -175,12 +177,10 @@ SideCollision Proc
 	cmp player.x,3
 	jg checkpos
 	mov player.x,3
-	call clearplayer
 	checkpos:
 	cmp player.x,115
 	jl return
 	mov player.x,110
-	call clearplayer
 	return:
 	ret
 SideCollision ENDP
