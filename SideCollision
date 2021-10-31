@@ -113,13 +113,14 @@ Point ENDS
 	Jump PROC uses ecx eax 
 		mov ecx, 5
 		_:
-		   call SideCollision
+		   
 			call ClearPlayer
 			dec player.y
 			mov al,player.x 
 			add al, dirX
 			mov player.x, al
 			call DrawPlayer
+			 call SideCollision
 			mov eax,20
 			call Delay
 			loop _
@@ -173,14 +174,17 @@ Point ENDS
 	WriteCharToConsoleXY ENDP
 
 SideCollision Proc
-	checkneg:
 	cmp player.x,3
 	jg checkpos
+	call clearPlayer
 	mov player.x,3
+
 	checkpos:
 	cmp player.x,115
 	jl return
+	call clearPlayer
 	mov player.x,110
+
 	return:
 	ret
 SideCollision ENDP
