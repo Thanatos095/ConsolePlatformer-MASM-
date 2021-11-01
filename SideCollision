@@ -58,6 +58,7 @@ Point ENDS
 		_:
 			call clearPlayer
 			inc player.y
+			call SideCollision
 			cmp dirX, 0
 			je Rest
 
