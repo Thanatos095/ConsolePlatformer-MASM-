@@ -58,7 +58,7 @@ Point ENDS
 		ret
 	Update ENDP
 
-	Gravity PROC uses eax
+	Gravity PROC uses eax ; Now this procedure will check if it is colliding with a platform and if the player is jumping. if either condition is true gravity wont affect player
 		movzx eax, player.y
 		cmp isJumping, 0
 		je CheckIfOnPlatform
