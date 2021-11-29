@@ -7,33 +7,35 @@ Point ENDS
 
 Platform STRUCT
 	pos Point <?, ?>	;starting pos
-	_length BYTE 7		;The lenght of platform
+	_length BYTE 10		;The lenght of platform
 	isInit BYTE 0		; This checks if platform is generated yet
 Platform ENDS
 
 
 .data
-	numPlatformsMax = 4 ; There can only be <= 4 platforms at one time
+	numPlatformsMax = 8 ; There can only be <= 4 platforms at one time
 	inputChar BYTE ?
 	player Point <40, 27>
 	coin Point<?,?>
 	dirX SBYTE 0
 	clock DWORD 0
+	platformClock DWORD 0
 	ground BYTE "----------------------------------------------------------------------------------------------------------------------",0
 	isJumping BYTE 0
 	jumpCount BYTE 0 ; Used to keep track of how many frames till jump triggered
 	platforms Platform numPlatformsMax DUP(<>)
+	numberOfPlatforms BYTE 0
 .code
 	main PROC
 		;initialize stuff
+
 		call Randomize
 		call initializeground
+
 		call DrawPlayer
+
 		;call CreateRandomCoin
 		;call DrawCoin
-		
-
-
 		gameLoop:
 			call Update
 			jmp gameLoop 
@@ -61,6 +63,8 @@ Platform ENDS
 		_:
 			call Gravity
 			call Inertia
+		;call UpdatePlatforms  ;controls platform generation, draw, clear, removal and moving
+		; i have commented it for now because its not working as needed. needs debugging.
 		ret
 	Update ENDP
 
@@ -114,21 +118,22 @@ Platform ENDS
 				cmp inputChar,"w"	;if w
 				jne _2
 				cmp isJumping, 1
-				je _4
+				je break
 				mov isJumping, 1
-				je _4
+				je break
 
 			_2:
 				cmp inputChar,"a" ;else if a
 				jne _3
 				call moveLeft
+				jmp break
 	
 			_3:
 				cmp inputChar,"d" ; else if d
-				jne _4
+				jne break
 				call moveRight
 		
-			_4:
+			break:
 				ret			 ; else return
 	HandleEvents ENDP
 
@@ -238,7 +243,7 @@ Platform ENDS
 	DrawPlatforms PROC uses esi edx
 		mov esi, 0
 		_:
-			cmp platforms[esi * TYPE Platform].isInit, 0
+			cmp platforms[esi * TYPE Platform].isInit, 1 ; if the platform is not initialized then skip it
 			jne checkNext
 			
 			mov dl, platforms[esi * TYPE Platform].pos.x
@@ -258,17 +263,20 @@ Platform ENDS
 			ret
 	DrawPlatforms ENDP
 
-	GeneratePlatform PROC uses esi eax
+	ClearPlatforms PROC uses esi edx
 		mov esi, 0
 		_:
 			cmp platforms[esi * TYPE Platform].isInit, 0
 			jne checkNext
 			
-			mov eax, 60
-			call randomRange 
-			mov platforms[esi * TYPE Platform].isInit, 1
-			mov platforms[esi * TYPE Platform].pos.x , al
-			mov platforms[esi * TYPE Platform].pos.y, 1
+			mov dl, platforms[esi * TYPE Platform].pos.x
+			mov dh, platforms[esi * TYPE Platform].pos.y
+			mov al, ' '
+			movzx ecx, platforms[esi * TYPE Platform]._length
+			_draw:
+				inc dl
+				call writeCharToConsoleXY
+				Loop _draw
 
 			checkNext:
 				inc esi
@@ -276,15 +284,88 @@ Platform ENDS
 				jne _
 		Break:
 			ret
+	ClearPlatforms ENDP
+
+
+
+	GeneratePlatform PROC uses esi eax
+			movzx esi, numberOfPlatforms
+			inc esi
+			cmp esi, numPlatformsMax
+			jnb break ; if number of platforms + 1 >= number of max platforms then break
+
+			mov eax, 60
+			call randomRange 
+			mov platforms[esi * TYPE Platform].isInit, 1		
+			mov platforms[esi * TYPE Platform].pos.x , al
+			mov platforms[esi * TYPE Platform].pos.y, 1
+
+			inc numberOfPlatforms
+			Break:
+				ret
 	GeneratePlatform ENDP
 
 
-	UpdatePlatforms PROC
+	UpdatePlatforms PROC uses eax esi ebx
+		call PlatformGenerator
+		mov esi, 0
+		_:
+			mov ebx, esi
+			cmp bl, numberOfPlatforms
+			jge break
+
+			mov al, platforms[esi * TYPE Platform].pos.y
+			inc al
+			cmp al, 28
+			jl platformNotRemoved
+			
+			call RemovePlatform ; if the platform gets to the bottom of the platform remove it
+
+			platformNotRemoved:
+			inc platforms[esi * TYPE Platform].pos.y
+			
+			inc esi
+		break:
+			call ClearPlatforms
+			call DrawPlatforms
 		ret
 	UpdatePlatforms ENDP
 
-	CollisionWithPlatform PROC
-		ret
-	CollisionWithPlatform ENDP
+
+	RemovePlatform PROC uses eax ebx
+		mov eax, esi
+
+		_:
+			cmp al, numberOfPlatforms
+			jge break
+			mov bl, platforms[edi * 4 + 4].pos.y 
+			mov platforms[edi * 4].pos.y, bl
+
+			mov bl, platforms[edi * 4 + 4].pos.x
+			mov platforms[edi * 4].pos.x, bl
+
+			mov bl, platforms[edi * 4 + 4]._length
+			mov platforms[edi * 4]._length, bl
+
+			mov bl, platforms[edi * 4 + 4].isInit
+			mov platforms[edi * 4].isInit, bl
+			inc al
+			; since an arbitary index from the array is being removed, shifting back all indices by 1 
+			; for(i = ind ; i < num ; i++) arr[i] = arr[i + 1];
+
+		break:
+			dec numberOfPlatforms
+			ret
+	RemovePlatform ENDP
+
+	PlatformGenerator PROC
+		inc PlatformClock
+		cmp PlatformClock, 4000 ;for spawning a platform around every 4000 frames
+		jb noReset
+		mov PlatformClock, 0
+		call GeneratePlatform		
+		noReset:
+			ret
+	PlatformGenerator ENDP
 
 END main
