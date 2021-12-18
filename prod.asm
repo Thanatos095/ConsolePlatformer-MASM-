@@ -117,7 +117,6 @@ Platform ENDS
 	initializeground ENDP
 
 	Update PROC
-	    call drawscore
 		call HandleEvents
 		call DrawCoin
 		call moveenemy
