@@ -147,8 +147,9 @@ Platform ENDS
 	CoinCollision ENDP
 
 	CreateRandomCoin PROC uses eax
-		mov eax,100
+		mov eax,25
 		call RandomRange
+		add eax,50
 		mov coin.x,al
 		mov eax,25
 		call randomrange
