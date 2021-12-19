@@ -6,7 +6,7 @@ Point STRUCT
 Point ENDS
 
 Platform STRUCT
-	pos Point <?, ?>	;starting pos
+	pos Point <0, 0>	;starting pos
 	_length BYTE 10		;The lenght of platform
 	isInit BYTE 0		; This checks if platform is generated yet
 Platform ENDS
@@ -16,13 +16,14 @@ Platform ENDS
 	numPlatformsMax = 15 ; There can only be <= 6 platforms at one time
 	inputChar BYTE ?
 	player Point <40, 27>
-	enemy Point<50,15>
+	enemy Point<40,12>
 	enemydir Point<0,0>
 	coin Point<?,?>
 	dirX SBYTE 0
 	InertiaClock DWORD 0
 	platformGenerationClock DWORD 0
 	platformMovementClock DWORD 0
+	FirstPlatformClock DWORD 0
 	enemyClock DWORD 0
 	JumpClock DWORD 5000
 	ground BYTE "----------------------------------------------------------------------------------------------------------------------",0
@@ -48,9 +49,9 @@ Platform ENDS
 
 		init:
 			call clrscr
-			call initializeground
-			call DrawPlayer
 			call CreateRandomCoin
+			call initializeground
+			
 		gameLoop:
 			cmp gameoverbool,1
 			je endscr
@@ -68,13 +69,14 @@ Platform ENDS
 		exit
 	main ENDP
 	
-	DrawCoin PROC
+	DrawCoin PROC uses eax edx
 	mov eax,yellow (black * 16)
 	call SetTextColor
 	mov dl,coin.x
 	mov dh,coin.y
 	mov al,"O"
-	call WriteChartoconsolexy
+	call gotoxy
+	call WriteChar
 	mov eax,white (black * 16)
 	call SetTextColor
 	ret
@@ -94,7 +96,7 @@ Platform ENDS
 	ret
 	CoinCollision ENDP
 
-	CreateRandomCoin PROC
+	CreateRandomCoin PROC uses eax
 		mov eax,100
 		call RandomRange
 		mov coin.x,al
@@ -122,6 +124,7 @@ Platform ENDS
 		call moveenemy
 		cmp isJumping, 0
 		je _
+		call SideCollision
 		call Jump
 		_:
 			call Gravity
@@ -143,7 +146,8 @@ Platform ENDS
 			cmp player.y, 26
 			jg _ng
 			check:
-
+			cmp FirstPlatformClock ,4000
+			jl _
 
 			mov al,platforms[esi * TYPE platform].pos.y
 			;sub al,1
@@ -152,7 +156,7 @@ Platform ENDS
 			jmp next
 			checkxgreater:
 			mov al,platforms[esi * TYPE platform].pos.x
-			add al,9
+			add al,10
 			cmp al,player.x
 			jg checkxLesser
 			jmp next
@@ -192,7 +196,7 @@ Platform ENDS
 	
 
 	Inertia PROC
-		cmp InertiaClock, 1500 ; if it has been 1500 cycles then i reset dirX
+		cmp InertiaClock, 500 ; if it has been 1500 cycles then i reset dirX
 		jne Return
 		mov dirX, 0
 		Return:
@@ -200,8 +204,8 @@ Platform ENDS
 	Inertia ENDP
 
 	HandleEvents PROC
-		call CoinCollision
 		call enemyCollision
+		call CoinCollision
 		call ReadKey
 		jnz KeyEntered 
 		ret	;if no key is entered it returns
@@ -215,7 +219,7 @@ Platform ENDS
 				cmp isJumping, 1	; cant jump if already jumping
 				je break
 
-				cmp jumpClock, 5000		; can jump every 5000 cycles
+				cmp jumpClock, 250 ; can jump every 5000 cycles
 				jl break
 				mov jumpClock, 0
 				mov isJumping, 1
@@ -299,43 +303,58 @@ Platform ENDS
 	moveEnemy PROC uses eax
 	call clearenemy
 
-	cmp enemyclock,500
+	cmp enemyclock,1200
 	jl rest
-	cmp enemy.y,25
+	mov enemyclock,0
+	cmp enemy.y,22
 	jg resetYdown
-	cmp enemy.y,2
+	cmp enemy.y,5
 	jl resetYUp
 	
 	jmp newEnemyDirection
 	resetYdown:
 		call clearenemy
-		mov enemy.y,24
+		mov enemydir.y,-1
 	resetYup:
 		call clearenemy
-
+		mov enemydir.y,1
+	jmp enemymove
 
 	newEnemyDirection:
-		mov enemyclock,0
-		mov eax,3
-		call randomrange
-		dec al
-		mov enemydir.x,al
-		mov eax,3
-		call randomrange
-		dec al
-		mov enemydir.y,al
+		mov al,coin.x
+		cmp al,enemy.x
+		jg dirRight
+			dirLeft:
+			mov enemydir.x,-1
+			jmp checkY
+		dirRight:
+			mov enemydir.x,1
+
+		checkY:
+			mov al, coin.y
+			cmp al,enemy.y
+			jg moveDown
+		moveUP:
+			mov enemydir.y,-1
+			jmp endDirection
+		moveDown:
+			mov  enemydir.y,1
+		endDirection:
+
+
 	enemymove:
 		mov al,enemydir.x
 		add enemy.x,al
 		mov al,enemydir.y
 		add enemy.y,al
 	rest:
+	    call clearenemy
 		call drawenemy
 	ret
 	moveEnemy endp
 
-	DrawEnemy PROC
-		mov eax,black (red * 16)
+	DrawEnemy PROC uses eax edx
+		mov eax,black (white * 16)
 		call settextcolor
 		mov dl, enemy.x
 		mov dh, enemy.y
@@ -361,7 +380,7 @@ Platform ENDS
 	ret
 	EnemyCollision ENDP
 
-	ClearEnemy PROC
+	ClearEnemy PROC uses eax edx
 		mov dl, enemy.x
 		mov dh, enemy.y
 		mov al, ' '
@@ -382,7 +401,7 @@ Platform ENDS
 
 		checkpos:
 		cmp player.x,115
-		jl return
+		jl checkYpos
 		call clearPlayer
 		mov player.x,115
 
@@ -395,11 +414,6 @@ Platform ENDS
 		return:
 		ret
 	SideCollision ENDP
-
-	PlatformCollision Proc
-
-
-	PlatformCollision ENDP
 	
 
 	COMMENT!{This procedure accepts x pos in al and puts a platform there if no of platforms < max}!
@@ -579,16 +593,10 @@ Platform ENDS
 		inc platformMovementClock
 		inc JumpClock
 		inc enemyclock
+		inc FirstPlatformClock 
 		ret
 	UpdateClocks ENDP
 
-	drawscore proc uses eax
-	movzx eax,score
-	mov dl,0
-	mov dh,0
-	call gotoxy
-	call writeint
-	ret
-	drawscore endp
+
 
 END main
