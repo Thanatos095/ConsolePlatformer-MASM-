@@ -32,7 +32,11 @@ Platform ENDS
 	platforms Platform numPlatformsMax DUP(<>)
 	numberOfPlatforms BYTE 0
 	score BYTE 0
+	enemyMode byte 0
+	quit byte 0
 	gameOverbool BYTE 0
+	enemyspeedCoolDownOriginal DWORD 600
+	enemyspeedCoolDown DWORD 1200
 .code
 	main PROC
 										;initialize stuff
@@ -41,6 +45,11 @@ Platform ENDS
 		mov dl,45
 		call gotoxy
 		mwrite"PRESS SPACE TO PLAY"
+		call crlf
+		mov dh,14
+		mov dl,38
+		call gotoxy
+		mwrite"Press escape anytime to end game!"
 		menu:
 			call readkey
 			cmp al," "	
@@ -55,6 +64,8 @@ Platform ENDS
 		gameLoop:
 			cmp gameoverbool,1
 			je endscr
+			cmp quit,1
+			je endgame
 			call Update
 			jmp gameLoop
 			
@@ -66,6 +77,30 @@ Platform ENDS
 			call crlf
 			mov al,score
 			call writeint
+			call crlf
+			mwrite"Press R to restart or E to End!"
+			endmenu:
+				call readkey
+				cmp al,"r"
+				je restart
+				cmp al,"e"
+				je endgame
+				jmp endmenu
+			restart:
+				
+				mov eax,enemyspeedCoolDownOriginal
+				mov enemyspeedCoolDown,eax
+				call CreateRandomCoin
+				mov player.y, 27
+				mov player.x ,40
+				mov score,0
+				mov gameOverbool ,0
+				call clrscr
+				call initializeground
+			jmp gameLoop
+
+			endgame:
+			call clrscr
 		exit
 	main ENDP
 	
@@ -91,6 +126,20 @@ Platform ENDS
 	jne return
 	collision:
 		call createRandomCoin
+		cmp enemyMode,0
+		je switchenemymode0
+		mov enemymode,0
+		jmp next
+		switchenemymode0:
+		mov enemymode,1
+		next:
+		cmp enemyspeedcooldown,200
+		je keepCDsame
+
+		mov eax,enemyspeedCoolDown
+		sub eax,200
+		mov enemyspeedCoolDown,eax
+		keepCDsame:
 		inc score
 	return:
 	ret
@@ -120,8 +169,8 @@ Platform ENDS
 
 	Update PROC
 		call HandleEvents
-		call DrawCoin
-		call moveenemy
+		
+
 		cmp isJumping, 0
 		je _
 		call SideCollision
@@ -131,6 +180,8 @@ Platform ENDS
 			call Inertia
 		call PlatformGenerator
 		call PlatformMovement
+		call DrawCoin
+		call moveenemy
 		call UpdateClocks
 		ret
 	Update ENDP
@@ -233,9 +284,18 @@ Platform ENDS
 	
 			_3:
 				cmp inputChar,"d" ; else if d
-				jne break
+				jne _4
 				call moveRight
-		
+				jmp break
+
+
+			_4:
+				cmp inputChar,27 ; else if esc
+				je quitgame
+				jmp break
+				quitgame:
+					mov quit,1
+					
 			break:
 				ret			 ; else return
 	HandleEvents ENDP
@@ -300,30 +360,38 @@ Platform ENDS
 		ret
 	CLearPlayer ENDP
 	
-	moveEnemy PROC uses eax
+	moveEnemy PROC uses eax ebx
+	mov ebx,0 ; bool value is set if enemy is not at coin position x , it need to be 0 at check Y so we can know if enemy is at both coin x and y pos
 	call clearenemy
 
-	cmp enemyclock,1200
+	mov eax,enemyspeedCoolDown
+	cmp enemyclock,eax
 	jl rest
 	mov enemyclock,0
-	cmp enemy.y,22
+	cmp enemy.y,26
 	jg resetYdown
-	cmp enemy.y,5
+	cmp enemy.y,2
 	jl resetYUp
 	
 	jmp newEnemyDirection
 	resetYdown:
-		call clearenemy
 		mov enemydir.y,-1
+		jmp enemymove
 	resetYup:
-		call clearenemy
 		mov enemydir.y,1
 	jmp enemymove
 
 	newEnemyDirection:
+		cmp enemyMode,0
+		jne playerchase
+		coinchase:
 		mov al,coin.x
 		cmp al,enemy.x
+		je checkY
+		mov ebx,1          ; it will be set now so we know not to jump to switch in checkY label
 		jg dirRight
+		
+			
 			dirLeft:
 			mov enemydir.x,-1
 			jmp checkY
@@ -333,14 +401,48 @@ Platform ENDS
 		checkY:
 			mov al, coin.y
 			cmp al,enemy.y
+			je switch
 			jg moveDown
 		moveUP:
 			mov enemydir.y,-1
 			jmp endDirection
 		moveDown:
 			mov  enemydir.y,1
-		endDirection:
+		jmp endDirection
+		
+		switch:
+		cmp ebx,1
+		je endDirection
+		cmp enemyMode,0
+			je switchenemymode0
+			mov enemymode,0
+			jmp rest
+			switchenemymode0:
+			mov enemymode,1
+			jmp rest
 
+		playerchase:
+			mov al,player.x
+		cmp al,enemy.x
+		jg dirRightP
+			dirLeftP:
+			mov enemydir.x,-1
+			jmp checkYP
+		dirRightP:
+			mov enemydir.x,1
+
+		checkYP:
+			mov al, player.y
+			cmp al,enemy.y
+			jg moveDownP
+		moveUPP:
+			mov enemydir.y,-1
+			jmp endDirection
+		moveDownP:
+			mov  enemydir.y,1
+
+
+		endDirection:
 
 	enemymove:
 		mov al,enemydir.x
@@ -348,17 +450,17 @@ Platform ENDS
 		mov al,enemydir.y
 		add enemy.y,al
 	rest:
-	    call clearenemy
+		
 		call drawenemy
 	ret
 	moveEnemy endp
 
 	DrawEnemy PROC uses eax edx
-		mov eax,black (white * 16)
+		mov eax,Red (black * 16)
 		call settextcolor
 		mov dl, enemy.x
 		mov dh, enemy.y
-		mov al, 'X'
+		mov al, 'O'
 		call WriteCharToConsoleXY
 		mov eax,white (black * 16)
 		call settextcolor
@@ -596,6 +698,7 @@ Platform ENDS
 		inc FirstPlatformClock 
 		ret
 	UpdateClocks ENDP
+
 
 
 
