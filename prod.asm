@@ -35,7 +35,7 @@ Platform ENDS
 	enemyMode byte 0
 	quit byte 0
 	gameOverbool BYTE 0
-	enemyspeedCoolDownOriginal DWORD 600
+	enemyspeedCoolDownOriginal DWORD 1000
 	enemyspeedCoolDown DWORD 1200
 
 .code
@@ -406,10 +406,13 @@ Platform ENDS
 		coinchase:
 		mov al,coin.x
 		cmp al,enemy.x
-		je checkY
+		je XdirZero
 		mov ebx,1          ; it will be set now so we know not to jump to switch in checkY label
 		jg dirRight
 		
+		XdirZero:
+			mov enemydir.x,0
+			jmp checkY
 			
 			dirLeft:
 			mov enemydir.x,-1
@@ -420,19 +423,22 @@ Platform ENDS
 		checkY:
 			mov al, coin.y
 			cmp al,enemy.y
-			je switch
+			je YdirZero
 			jg moveDown
 		moveUP:
 			mov enemydir.y,-1
 			jmp endDirection
+		YdirZero:
+		mov enemydir.y,0
+		jmp switch
 		moveDown:
 			mov  enemydir.y,1
 		jmp endDirection
 		
 		switch:
-		cmp ebx,1
-		je endDirection
-		cmp enemyMode,0
+			cmp ebx,1
+			je endDirection
+			cmp enemyMode,0
 			je switchenemymode0
 			mov enemymode,0
 			jmp rest
