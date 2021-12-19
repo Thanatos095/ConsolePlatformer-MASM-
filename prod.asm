@@ -37,6 +37,7 @@ Platform ENDS
 	gameOverbool BYTE 0
 	enemyspeedCoolDownOriginal DWORD 600
 	enemyspeedCoolDown DWORD 1200
+
 .code
 	main PROC
 										;initialize stuff
@@ -270,7 +271,7 @@ Platform ENDS
 				cmp isJumping, 1	; cant jump if already jumping
 				je break
 
-				cmp jumpClock, 250 ; can jump every 5000 cycles
+				cmp jumpClock, 200 ; can jump every 200 cycles
 				jl break
 				mov jumpClock, 0
 				mov isJumping, 1
@@ -287,9 +288,13 @@ Platform ENDS
 				jne _4
 				call moveRight
 				jmp break
-
-
 			_4:
+				cmp inputChar, "s" ; else if s
+				jne _5
+				call movDown
+				jmp break
+
+			_5:
 				cmp inputChar,27 ; else if esc
 				je quitgame
 				jmp break
@@ -339,6 +344,19 @@ Platform ENDS
 		call DrawPlayer
 		ret
 	moveRight ENDP
+
+	movDown Proc
+		cmp isJumping,1
+		je break
+		cmp player.y,27
+		je break
+		call clearplayer
+		add player.y,1
+		call drawplayer
+		break:
+			ret
+	movDown endp
+		
 	
 
 	DrawPlayer PROC
